@@ -1,0 +1,538 @@
+--// Script Premium By Dutzzy (MERGE v30+v26)
+--// final_dutzzyvip_full_v31.lua
+-- Full merge: v30 fixes (live preview, offset X/Y, colorpicker, rainbow) + v26 features (preset titles, full mounts, auto-walk, misc, animasi)
+-- KeySystem: Rayfield built-in (change Key in KeySettings if needed)
+
+-- Services
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Rayfield UI (UI loader)
+local ok, Rayfield = pcall(function() return loadstring(game:HttpGet("https://sirius.menu/rayfield"))() end)
+if not ok or not Rayfield then
+    error("Gagal load Rayfield UI. Pastikan executor mengizinkan HttpGet dan URL tersedia.")
+end
+
+local Window = Rayfield:CreateWindow({
+    Name = "Script Premium By Dutzzy",
+    LoadingTitle = "",
+    LoadingSubtitle = "Script Premium By Dutzzy",
+    ConfigurationSaving = { Enabled = true, FolderName = nil, FileName = "_Config" },
+    Discord = { Enabled = false },
+    KeySystem = true,
+    KeySettings = {
+        Title = " Premium",
+        Subtitle = "Key System",
+        Note = "Join Discord for Key",
+        FileName = "_Key",
+        SaveKey = true,
+        GrabKeyFromSite = false,
+        Key = { "PREMIUM-1234" } -- ganti sesuai kebutuhan
+    }
+})
+
+-- TABS
+local TabAuto   = Window:CreateTab("AUTO SUMMIT", 4483362458)
+local TabWalk   = Window:CreateTab("AUTO WALK", 4483362458)
+local TabTp     = Window:CreateTab("PUNCAK", 4483362458)
+local TabMisc   = Window:CreateTab("SCRIPT", 4483362458)
+local TabHub    = Window:CreateTab("ANIMASI", 4483362458)
+local TabCre    = Window:CreateTab("TITLE", 4483362458)
+
+-- =================================================
+-- ANIMASI (sparkles) - from v26/v29
+-- =================================================
+local currentMode, animating = nil, false
+
+local function applySparkles(character)
+    local parts = {"HumanoidRootPart","Head","LeftHand","RightHand","LeftFoot","RightFoot"}
+    local sparklesList = {}
+    for _, partName in ipairs(parts) do
+        local part = character:FindFirstChild(partName)
+        if part then
+            local spark = part:FindFirstChild("Sparkles")
+            if not spark then
+                spark = Instance.new("Sparkles")
+                spark.Parent = part
+            end
+            table.insert(sparklesList, spark)
+        end
+    end
+    return sparklesList
+end
+
+local function startAnimation(mode, sparklesList)
+    currentMode = mode; animating = true
+    task.spawn(function()
+        local t = 0
+        while animating and currentMode == mode and #sparklesList > 0 do
+            t = t + 0.1
+            for _, s in ipairs(sparklesList) do
+                if mode == "DISCO" then
+                    s.SparkleColor = Color3.fromHSV((tick()%5)/5,1,1)
+                elseif mode == "PURPLE" then
+                    s.SparkleColor = Color3.fromRGB(160,32,240)
+                elseif mode == "CYAN" then
+                elseif mode == "FIRE" then
+                    local r = 200 + math.random(-20,20)
+                    local g = math.random(50,100)
+                    local b = 0
+                    s.SparkleColor = Color3.fromRGB(r,g,b)
+
+                elseif mode == "ICE" then
+                    local r = 100 + math.random(-30,30)
+                    local g = 200 + math.random(-30,30)
+                    local b = 255
+                    s.SparkleColor = Color3.fromRGB(r,g,b)
+
+                elseif mode == "GALAXY" then
+                    local colors = {
+                        Color3.fromRGB(75,0,130), -- indigo
+                        Color3.fromRGB(138,43,226), -- blueviolet
+                        Color3.fromRGB(199,21,133), -- mediumvioletred
+                        Color3.fromRGB(25,25,112)   -- midnightblue
+                    }
+                    s.SparkleColor = colors[math.random(1,#colors)]
+
+                elseif mode == "NEON" then
+                    s.SparkleColor = Color3.fromRGB(
+                        math.random(150,255),
+                        math.random(150,255),
+                        math.random(150,255)
+                    )
+
+                elseif mode == "FLASH" then
+                    if math.floor(t*5) % 2 == 0 then
+                        s.SparkleColor = Color3.fromRGB(255,255,255)
+                    else
+                        s.SparkleColor = Color3.fromRGB(0,0,0)
+                    end
+
+                    s.SparkleColor = Color3.fromRGB(0,200,255)
+                end
+            end
+            task.wait(0.15)
+        end
+    end)
+end
+
+TabHub:CreateButton({ Name="DISCO", Callback=function() animating=false; startAnimation("DISCO", applySparkles(LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait())) end })
+TabHub:CreateButton({ Name="PURPLE", Callback=function() animating=false; startAnimation("PURPLE", applySparkles(LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait())) end })
+TabHub:CreateButton({ Name="CYAN", Callback=function() animating=false; startAnimation("CYAN", applySparkles(LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait())) end })
+
+Players.LocalPlayer.CharacterAdded:Connect(function(char)
+    if currentMode then task.wait(1); startAnimation(currentMode, applySparkles(char)) end
+end)
+
+-- =================================================
+-- TITLE (v30 live preview + presets from v26)
+-- =================================================
+-- Preview UI variables
+local previewScreenGui = nil
+local previewLabel = nil
+
+local TitleText = ""
+local PreviewOffsetX = -200 -- pixels offset from center
+local PreviewOffsetY = 20
+local PreviewFontSize = 32
+local PreviewColor = Color3.fromRGB(0,255,255)
+local PreviewMode = "SOLID" -- SOLID / RAINBOW / PULSE
+
+local function ensurePreviewGUI()
+    local pg = LocalPlayer:WaitForChild("PlayerGui")
+    previewScreenGui = pg:FindFirstChild("_PreviewGuiX")
+    if not previewScreenGui then
+        previewScreenGui = Instance.new("ScreenGui")
+        previewScreenGui.Name = "_PreviewGuiX"
+        previewScreenGui.ResetOnSpawn = false
+        previewScreenGui.Parent = pg
+    end
+
+    previewLabel = previewScreenGui:FindFirstChild("_PreviewLabelX")
+    if not previewLabel then
+        previewLabel = Instance.new("TextLabel")
+        previewLabel.Name = "_PreviewLabelX"
+        previewLabel.Size = UDim2.new(0, 400, 0, 50)
+        previewLabel.Position = UDim2.new(0.5, PreviewOffsetX, 0, PreviewOffsetY)
+        previewLabel.AnchorPoint = Vector2.new(0.5, 0)
+        previewLabel.BackgroundTransparency = 1
+        previewLabel.Text = TitleText
+        previewLabel.Font = Enum.Font.SourceSansBold
+        previewLabel.TextSize = PreviewFontSize
+        previewLabel.TextColor3 = PreviewColor
+        previewLabel.Parent = previewScreenGui
+    end
+end
+
+ensurePreviewGUI()
+
+RunService.RenderStepped:Connect(function()
+    if not previewLabel then ensurePreviewGUI() end
+    if previewLabel then
+        previewLabel.Text = TitleText or ""
+        previewLabel.TextSize = PreviewFontSize
+        previewLabel.Position = UDim2.new(0.5, PreviewOffsetX, 0, PreviewOffsetY)
+        if PreviewMode == "RAINBOW" then
+            local hue = (tick() % 5) / 5
+            previewLabel.TextColor3 = Color3.fromHSV(hue, 1, 1)
+        elseif PreviewMode == "PULSE" then
+            local t = tick()
+            local v = (math.sin(t*3) + 1) / 2
+            local g = math.clamp(math.floor(v*255),0,255)
+            previewLabel.TextColor3 = Color3.fromRGB(255, g, g)
+        else
+            previewLabel.TextColor3 = PreviewColor
+        end
+    end
+end)
+
+-- Title controls (live preview + apply)
+TabCre:CreateInput({ Name = "Custom Title (Live Preview)", PlaceholderText = "Ketik title...", RemoveTextAfterFocusLost = false, Callback = function(text) TitleText = text if previewLabel then previewLabel.Text = TitleText end end })
+
+TabCre:CreateSlider({ Name = "Preview Font Size", Range = {10, 72}, Increment = 1, Suffix = "px", CurrentValue = PreviewFontSize, Callback = function(size) PreviewFontSize = size end })
+
+TabCre:CreateSlider({ Name = "Preview Offset X", Range = {-400, 400}, Increment = 10, CurrentValue = PreviewOffsetX, Callback = function(val) PreviewOffsetX = val end })
+
+TabCre:CreateSlider({ Name = "Preview Offset Y", Range = {-300, 300}, Increment = 10, CurrentValue = PreviewOffsetY, Callback = function(val) PreviewOffsetY = val end })
+
+TabCre:CreateColorPicker({ Name = "Custom Title Color (Preview)", Color = PreviewColor, Callback = function(color) PreviewColor = color end })
+
+TabCre:CreateToggle({ Name = "Rainbow Preview", CurrentValue = false, Callback = function(state) if state then PreviewMode = "RAINBOW" else PreviewMode = "SOLID" end end })
+
+TabCre:CreateDropdown({ Name = "Title Color Mode (Apply)", Options = { "SOLID", "RAINBOW", "PULSE" }, CurrentOption = "SOLID", Callback = function(v) PreviewMode = v end })
+
+-- Apply custom title to head (uses preview settings)
+TabCre:CreateButton({ Name = "Apply Custom Title To Head", Callback = function()
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local head = char:WaitForChild("Head")
+    if head:FindFirstChild("AdminTag") then head.AdminTag:Destroy() end
+    local billboard = Instance.new("BillboardGui", head)
+    billboard.Name = "AdminTag"; billboard.Size = UDim2.new(0,200,0,50); billboard.StudsOffset = Vector3.new(0, 3, 0); billboard.AlwaysOnTop = true; billboard.LightInfluence = 0
+    local text = Instance.new("TextLabel", billboard)
+    text.Size = UDim2.new(1,0,1,0); text.BackgroundTransparency = 1; text.Text = (TitleText~="" and TitleText) or "CUSTOM TITLE"
+    text.TextStrokeTransparency = 0; text.Font = Enum.Font.SourceSansBold; text.TextSize = PreviewFontSize
+
+    if PreviewMode == "SOLID" then
+        text.TextColor3 = PreviewColor
+    elseif PreviewMode == "RAINBOW" then
+        spawn(function() while text.Parent do text.TextColor3 = Color3.fromHSV((tick()%5)/5,1,1); task.wait(0.1) end end)
+    elseif PreviewMode == "PULSE" then
+        spawn(function() local t=0; while text.Parent do t = t + 0.1; local v = (math.sin(t*4) + 1) * 127; text.TextColor3 = Color3.fromRGB(255, math.clamp(math.floor(v),0,255), math.clamp(math.floor(v),0,255)); task.wait(0.1) end end)
+    end
+end })
+
+-- =================================================
+-- Preset Role Titles (from v26): OWNER, HeadAdmin, ADMIN, VIP, TOP DONATUR
+-- =================================================
+local function createTitleButton(name, textContent, colorOverride)
+    TabCre:CreateButton({
+        Name = name,
+        Callback = function()
+            local player = Players.LocalPlayer
+            local char   = player.Character or player.CharacterAdded:Wait()
+            local head   = char:WaitForChild("Head")
+
+            if head:FindFirstChild("AdminTag") then
+                head.AdminTag:Destroy()
+            end
+
+            local billboard = Instance.new("BillboardGui")
+            billboard.Name = "AdminTag"
+            billboard.Parent = head
+            billboard.Size = UDim2.new(0, 220, 0, 50)
+            billboard.StudsOffset = Vector3.new(0, 3, 0)
+            billboard.AlwaysOnTop = true
+            billboard.LightInfluence = 0
+
+            local text = Instance.new("TextLabel")
+            text.Parent = billboard
+            text.Size = UDim2.new(1, 0, 1, 0)
+            text.BackgroundTransparency = 1
+            text.Text = textContent
+            text.TextStrokeTransparency = 0
+            text.Font = Enum.Font.SourceSansBold
+            text.TextSize = PreviewFontSize
+
+            -- color / mode handling: if PreviewMode is RAINBOW/PULSE, use that; otherwise use colorOverride or PreviewColor
+            if PreviewMode == "SOLID" then
+                text.TextColor3 = colorOverride or PreviewColor
+            elseif PreviewMode == "RAINBOW" then
+                spawn(function() while text.Parent do text.TextColor3 = Color3.fromHSV((tick()%5)/5,1,1); task.wait(0.1) end end)
+            elseif PreviewMode == "PULSE" then
+                spawn(function() local t=0; while text.Parent do t = t + 0.1; local v = (math.sin(t*4) + 1) * 127; text.TextColor3 = Color3.fromRGB(255, math.clamp(math.floor(v),0,255), math.clamp(math.floor(v),0,255)); task.wait(0.1) end end)
+            end
+            LastTitleConfig = {Text = textContent, Color = colorOverride, Mode = PreviewMode, FontSize = PreviewFontSize}
+        end,
+    })
+end
+
+-- create presets (colors chosen to match old v26 feel)
+createTitleButton("👑 OWNER 👑", "👑 OWNER 👑", Color3.fromRGB(255, 0, 0))
+createTitleButton("🛡️ HeadAdmin 🛡️", "🛡️ HeadAdmin 🛡️", Color3.fromRGB(160, 32, 240))
+createTitleButton("👑 ADMIN 👑", "👑 ADMIN 👑", Color3.fromRGB(0, 170, 255))
+createTitleButton("💎 VIP 💎", "💎 VIP 💎", Color3.fromRGB(0, 255, 255))
+createTitleButton("🏆 TOP DONATUR 🏆", "🏆 TOP DONATUR 🏆", Color3.fromRGB(255, 200, 0))
+
+-- =================================================
+-- MISC SCRIPTS (v26)
+-- =================================================
+TabMisc:CreateButton({ Name="FLY GUI V3", Callback=function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Gui-Fly-v3-37111"))() end })
+TabMisc:CreateButton({ Name="INFINITE YIELD", Callback=function() loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))() end })
+TabMisc:CreateButton({ Name="SPEED COIL", Callback=function()
+    local player = Players.LocalPlayer; local speedValue = 23
+    local function giveCoil(char)
+        local backpack = player:WaitForChild("Backpack")
+        if backpack:FindFirstChild("Speed Coil") or char:FindFirstChild("Speed Coil") then return end
+        local tool = Instance.new("Tool"); tool.Name="Speed Coil"; tool.RequiresHandle=false; tool.Parent = backpack
+        tool.Equipped:Connect(function() local humanoid = char:FindFirstChildOfClass("Humanoid"); if humanoid then humanoid.WalkSpeed = speedValue end end)
+        tool.Unequipped:Connect(function() local humanoid = char:FindFirstChildOfClass("Humanoid"); if humanoid then humanoid.WalkSpeed = 16 end end)
+    end
+    if player.Character then giveCoil(player.Character) end
+    player.CharacterAdded:Connect(function(char) task.wait(1); giveCoil(char) end)
+end })
+
+TabMisc:CreateButton({ Name="BRING PART", Callback=function() loadstring(game:HttpGet("https://gist.githubusercontent.com/tarz2642008-ship-it/ed8e924b00a9a2b87b57c722498cad9c/raw/f43d555c085bc86a24da8f081b7db4103efc16d9/RingPart"))() end })
+TabMisc:CreateButton({ Name="FLING GUI", Callback=function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Fling-Gui-Op-47914"))() end })
+TabMisc:CreateButton({ Name="INFINITE JUMP", Callback=function() loadstring(game:HttpGet("https://raw.githubusercontent.com/WataXScript/WataXCheat/refs/heads/main/Loader/infjump.lua"))() end })
+
+TabMisc:CreateButton({ Name="BOOST FPS", Callback=function() repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer; loadstring(game:HttpGet("https://pastefy.app/08huVciY/raw"))() end })
+
+TabMisc:CreateButton({ Name="TP TOOL", Callback=function()
+    local player = Players.LocalPlayer; local mouse = player:GetMouse()
+    local tool = Instance.new("Tool"); tool.RequiresHandle=false; tool.Name="TP Tool"; tool.Parent = player.Backpack
+    tool.Activated:Connect(function() if mouse.Hit then local char = player.Character; if char and char:FindFirstChild("HumanoidRootPart") then char.HumanoidRootPart.CFrame = CFrame.new(mouse.Hit.p + Vector3.new(0,3,0)) end end end)
+
+    LastTitleConfig = {Text = TitleText, Color = PreviewColor, Mode = PreviewMode, FontSize = PreviewFontSize}
+end })
+
+TabMisc:CreateSlider({ Name="WalkSpeed", Range={10,500}, Increment=1, CurrentValue=15, Suffix="Speed", Callback=function(Value) local char = Players.LocalPlayer.Character; if char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = Value end end })
+TabMisc:CreateSlider({ Name="Jump Height", Range={10,500}, Increment=1, CurrentValue=50, Suffix="Height", Callback=function(Value) local char = Players.LocalPlayer.Character; if char and char:FindFirstChild("Humanoid") then char.Humanoid.JumpPower = Value end end })
+
+-- =================================================
+-- AUTO WALK (loaders from v26)
+-- =================================================
+local function run(url)
+    local ok,res = pcall(function() return loadstring(game:HttpGet(url))() end)
+    if not ok then warn("[AUTO WALK] Gagal load:",res) end
+end
+
+TabWalk:CreateButton({ Name="Bypass", Callback=function() run("https://raw.githubusercontent.com/WataXScript/WataXMountYahayuk1/main/Loader/WataX.lua") end })
+
+-- === Gunung List ===
+TabWalk:CreateButton({ Name="Gunung Atin", Callback=function() run("https://raw.githubusercontent.com/WataXScript/WataXMountAtin/main/Loader/mainmap792.lua") end })
+TabWalk:CreateButton({ Name="Gunung Yahayuk", Callback=function() run("https://raw.githubusercontent.com/WataXScript/WataXMountYahayuk1/main/Loader/mainmap970.lua") end })
+TabWalk:CreateButton({ Name="Gunung Antartika", Callback=function() run("https://raw.githubusercontent.com/WataXScript/WataXAntartika157/main/Loader/mainmap273.lua") end })
+TabWalk:CreateButton({ Name="Gunung Lembayana", Callback=function() run("https://raw.githubusercontent.com/WataXScript/WataXMountLembayana/main/Loader/mainmap993.lua") end })
+TabWalk:CreateButton({ Name="Gunung Daun", Callback=function() run("https://raw.githubusercontent.com/WataXScript/WataXMountDaun/main/Loader/mainmap926.lua") end })
+
+-- =================================================
+-- AUTO SUMMIT (from v26 full list)
+-- =================================================
+local player = Players.LocalPlayer
+
+local function createAutoSummit(name, positions, respawnDelay, stepDelay, options)
+    local enabled = false
+    local cancelToken = nil
+    respawnDelay = respawnDelay or 3
+    stepDelay = stepDelay or 4
+    options = options or {}
+    local autoRespawn = (options.autoRespawn ~= false)
+
+    local function start(char)
+        if cancelToken then cancelToken.cancelled = true end
+        local token = { cancelled = false }
+        cancelToken = token
+        task.spawn(function()
+            local hrp = char:WaitForChild("HumanoidRootPart", 10)
+            if not hrp then return end
+            while enabled and not token.cancelled and char.Parent do
+                for _, pos in ipairs(positions) do
+                    if not enabled or token.cancelled then break end
+                    hrp = char:FindFirstChild("HumanoidRootPart")
+                    if hrp then pcall(function() hrp.CFrame = pos end) end
+                    task.wait(stepDelay)
+                end
+                if autoRespawn and enabled and not token.cancelled and char:FindFirstChild("Humanoid") then task.wait(respawnDelay); pcall(function() char:BreakJoints() end) end
+                task.wait(0.5)
+            end
+        end)
+    end
+
+    player.CharacterAdded:Connect(function(c) if enabled then task.wait(1); start(c) end end)
+
+    TabAuto:CreateToggle({ Name = name, CurrentValue = false, Callback = function(val) enabled = val if enabled and player.Character then start(player.Character) elseif cancelToken then cancelToken.cancelled = true end end })
+    TabTp:CreateButton({ Name = "PUNCAK " .. name, Callback = function() local c = player.Character if c and c:FindFirstChild("HumanoidRootPart") then c.HumanoidRootPart.CFrame = positions[#positions] end end })
+end
+
+-- full mounts list (v26)
+createAutoSummit("MOUNT ATIN", { CFrame.new(624.79, 1801.43, 3432.24), CFrame.new(781.23, 2166.03, 3921.29) }, 3, 4)
+createAutoSummit("MOUNT CING", { CFrame.new(331.84, 139.41, 829.17), CFrame.new(137.58, 79.41, 355.69), CFrame.new(53.14, 79.41, 28.00), CFrame.new(747.08, 127.41, 356.06), CFrame.new(676.80, 131.41, -764.56), CFrame.new(241.03, 251.41, -469.02), CFrame.new(-504.51, 437.00, -399.26), CFrame.new(-1336.50, 423.41, -444.37), CFrame.new(-1837.70, 493.00, -111.90), CFrame.new(-2196.33, 783.41, 985.90), CFrame.new(-1491.83, 1288.89, 1066.64) }, 3, 4)
+createAutoSummit("MOUNT SUMBING", { CFrame.new(-225.54, 441.00, 2142.43), CFrame.new(-427.57, 849.00, 3204.18), CFrame.new(41.93, 1269.00, 4044.11), CFrame.new(-1142.34, 1553.00, 4899.95), CFrame.new(-896.04, 1948.29, 5352.81) }, 3, 4)
+createAutoSummit("MOUNT HANAMI", { CFrame.new(515.81, 141.34, -121.60), CFrame.new(359.75, 195.70, -613.76), CFrame.new(-93.18, 169.79, -490.25), CFrame.new(-933.26, 345.41, -512.65), CFrame.new(-1277.02, 477.72, -329.48), CFrame.new(-1975.74, 609.55, 131.92), CFrame.new(-2765.88, 669.34, 44.07), CFrame.new(-2601.37, 848.96, -323.42) }, 1, 3)
+createAutoSummit("MOUNT ADUH", { CFrame.new(-805.00, 2744.41, 1248.00) }, 3, 4)
+createAutoSummit("MOUNT GAMPIL", { CFrame.new(570.05, 372.38, 144.33), CFrame.new(364.00, 432.40, -1245.00) }, 1, 0, { autoRespawn = false })
+createAutoSummit("MOUNT YAHAYUK", { CFrame.new(-420.05, 249.64, 769.69), CFrame.new(-347.92, 388.64, 522.19), CFrame.new(288.00, 429.64, 504.00), CFrame.new(333.85, 490.64, 348.98), CFrame.new(212.54, 314.64, -146.42), CFrame.new(-616.00, 905.38, -510.00) }, 1, 1, { autoRespawn = false })
+createAutoSummit("MOUNT OWASHU", { CFrame.new(-310.63, 70.94, 631.32), CFrame.new(7.17, 73.05, 1096.95), CFrame.new(-606.59, 253.05, 1226.75), CFrame.new(-1077.02, 328.65, 1416.00), CFrame.new(-1187.75, 488.64, 1787.63), CFrame.new(-1576.99, 670.25, 2322.01) }, 2, 1, { autoRespawn = true })
+createAutoSummit("MOUNT PASANG SIGMA", { CFrame.new(-54.26, 611.33, -487.00), CFrame.new(580.76, 846.81, 2852.67), CFrame.new(1799.04, 1083.41, 6131.96), CFrame.new(3707.07, 1572.18, 9050.33), CFrame.new(1136.15, 1671.33, 9455.95), CFrame.new(-566.15, 2050.75, 9498.65) }, 2, 2, { autoRespawn = true })
+createAutoSummit("MOUNT LABIRIN", { CFrame.new(-994.22, 124.47, -253.71), CFrame.new(7.72, 97.16, -372.16), CFrame.new(-66.56, 96.99, 44.85), CFrame.new(183.43, 96.18, 42.60), CFrame.new(772.51, 276.62, 512.32), CFrame.new(1123.88, 368.82, 480.56), CFrame.new(1502.94, 427.30, -366.49), CFrame.new(1169.64, 453.27, -497.46), CFrame.new(712.28, 433.41, -400.81), CFrame.new(934.43, 530.11, -84.31), CFrame.new(1170.98, 545.27, -38.62), CFrame.new(1218.25, 631.96, -79.29), CFrame.new(1158.22, 642.92, -282.00), CFrame.new(900.05, 669.27, -47.27), CFrame.new(1174.73, 805.02, -100.76), CFrame.new(1177.31, 800.85, -181.09) }, 1, 1, { autoRespawn = true })
+
+
+
+-- =================================================
+-- Title auto-reapply system (v36 clean)
+-- =================================================
+local LastTitleConfig = nil
+
+local function SaveTitleConfig(text, color, mode, size)
+    LastTitleConfig = {Text=text, Color=color, Mode=mode, FontSize=size}
+end
+
+local function ApplyTitleFromConfig(config)
+    if not config then return end
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    task.wait(1.5)
+    local head = char:FindFirstChild("Head")
+    if not head then return end
+
+    if head:FindFirstChild("AdminTag") then head.AdminTag:Destroy() end
+
+    local billboard = Instance.new("BillboardGui", head)
+    billboard.Name = "AdminTag"
+    billboard.Size = UDim2.new(0,220,0,50)
+    billboard.StudsOffset = Vector3.new(0,3,0)
+    billboard.AlwaysOnTop = true
+    billboard.LightInfluence = 0
+
+    local textLabel = Instance.new("TextLabel", billboard)
+    textLabel.Size = UDim2.new(1,0,1,0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.TextStrokeTransparency = 0
+    textLabel.Font = Enum.Font.SourceSansBold
+    textLabel.TextSize = config.FontSize or 32
+    textLabel.Text = config.Text or "CUSTOM TITLE"
+
+    if config.Mode == "SOLID" then
+        textLabel.TextColor3 = config.Color or Color3.fromRGB(255,255,255)
+    elseif config.Mode == "RAINBOW" then
+        spawn(function() while textLabel.Parent do textLabel.TextColor3 = Color3.fromHSV((tick()%5)/5,1,1); task.wait(0.1) end end)
+    elseif config.Mode == "PULSE" then
+        spawn(function() local t=0; while textLabel.Parent do t=t+0.1; local v=(math.sin(t*4)+1)*127; textLabel.TextColor3=Color3.fromRGB(255,v,v); task.wait(0.1) end end)
+    end
+
+    -- Safe notify
+    pcall(function()
+        if Rayfield and Rayfield.Notify then
+            local ok = pcall(function() Rayfield:Notify({Title="Title Restored", Content="Reapplied after respawn.", Duration=3}) end)
+            if not ok then
+                pcall(function() Rayfield:Notify("Title Restored","Reapplied after respawn.",3) end)
+            end
+        end
+    end)
+end
+
+-- Hook CharacterAdded to reapply
+Players.LocalPlayer.CharacterAdded:Connect(function()
+    if LastTitleConfig then
+        task.wait(2)
+        ApplyTitleFromConfig(LastTitleConfig)
+    end
+end)
+-- =================================================
+-- END auto-reapply system (v36)
+-- =================================================
+
+
+
+-- Force override all "Rayfield" labels to ""
+task.spawn(function()
+    local cg = game:GetService("CoreGui")
+    local rf = cg:WaitForChild("Rayfield", 10)
+    if rf then
+        for _,v in ipairs(rf:GetDescendants()) do
+            if v:IsA("TextLabel") and v.Text:find("Rayfield") then
+                v.Text = ""
+            end
+        end
+    end
+end)
+
+
+
+-- =================================================
+-- Patcher: Force replace "Rayfield" with "DutzzyVIP"
+-- =================================================
+task.spawn(function()
+    local CoreGui = game:GetService("CoreGui")
+    local rf = CoreGui:WaitForChild("Rayfield", 10)
+    if rf then
+        for _,v in ipairs(rf:GetDescendants()) do
+            if v:IsA("TextLabel") and v.Text:find("Rayfield") then
+                v.Text = v.Text:gsub("Rayfield", "DutzzyVIP")
+            end
+        end
+    end
+end)
+-- =================================================
+-- End patcher
+-- =================================================
+
+
+-- ========================
+-- END OF SCRIPT
+-- ========================
+
+
+
+-- Tambahan animasi baru
+TabHub:CreateButton({
+    Name="🔥 FIRE 🔥",
+    Callback=function()
+        animating=false
+        local player=game.Players.LocalPlayer
+        local char=player.Character or player.CharacterAdded:Wait()
+        local sparklesList=applySparkles(char)
+        startAnimation("FIRE",sparklesList)
+    end
+})
+TabHub:CreateButton({
+    Name="❄️ ICE ❄️",
+    Callback=function()
+        animating=false
+        local player=game.Players.LocalPlayer
+        local char=player.Character or player.CharacterAdded:Wait()
+        local sparklesList=applySparkles(char)
+        startAnimation("ICE",sparklesList)
+    end
+})
+TabHub:CreateButton({
+    Name="🌌 GALAXY 🌌",
+    Callback=function()
+        animating=false
+        local player=game.Players.LocalPlayer
+        local char=player.Character or player.CharacterAdded:Wait()
+        local sparklesList=applySparkles(char)
+        startAnimation("GALAXY",sparklesList)
+    end
+})
+TabHub:CreateButton({
+    Name="⚡ NEON ⚡",
+    Callback=function()
+        animating=false
+        local player=game.Players.LocalPlayer
+        local char=player.Character or player.CharacterAdded:Wait()
+        local sparklesList=applySparkles(char)
+        startAnimation("NEON",sparklesList)
+    end
+})
+TabHub:CreateButton({
+    Name="✨ FLASH ✨",
+    Callback=function()
+        animating=false
+        local player=game.Players.LocalPlayer
+        local char=player.Character or player.CharacterAdded:Wait()
+        local sparklesList=applySparkles(char)
+        startAnimation("FLASH",sparklesList)
+    end
+})
