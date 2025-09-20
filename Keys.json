@@ -3,18 +3,22 @@
     "TES": {
       "type": "permanent"
     },
-    "1bulan": {
+    "VIP-123": {
       "type": "monthly",
-      "expiry": 1760989072
+      "expiry": 1760990456
     },
-    "1bulan": {
+    "DX-USER-999": {
       "type": "monthly",
-      "expiry": 1760989072,
+      "expiry": 1760990456,
       "owner": 12345678
     },
-    "7hari": {
+    "WEEK-001": {
       "type": "weekly",
-      "expiry": 1759001872
+      "expiry": 1759003256
+    },
+    "WEEK-002": {
+      "type": "weekly",
+      "expiry": 1759003256
     }
   }
 }
