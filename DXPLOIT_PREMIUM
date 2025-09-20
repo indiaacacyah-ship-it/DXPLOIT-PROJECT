@@ -16,20 +16,20 @@ if not ok or not Rayfield then
 end
 
 local Window = Rayfield:CreateWindow({
-    Name = "Script Premium By Dutzzy",
-    LoadingTitle = "",
-    LoadingSubtitle = "Script Premium By Dutzzy",
+    Name = "Script Premium By DXPLOIT",
+    LoadingTitle = "DXPLOIT",
+    LoadingSubtitle = "Script Premium By DXPLOIT",
     ConfigurationSaving = { Enabled = true, FolderName = nil, FileName = "_Config" },
     Discord = { Enabled = false },
     KeySystem = true,
     KeySettings = {
         Title = " Premium",
         Subtitle = "Key System",
-        Note = "Join Discord for Key",
+        Note = "AREA KHUSUS MEMBER PREMIUM DXPLOIT",
         FileName = "_Key",
         SaveKey = true,
         GrabKeyFromSite = false,
-        Key = { "PREMIUM-1234" } -- ganti sesuai kebutuhan
+        Key = { "Tes" } -- ganti sesuai kebutuhan
     }
 })
 
