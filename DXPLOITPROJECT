@@ -1,6 +1,6 @@
--- DXPLOIT Premium (Final - Full Features + Clean KeyBox)
--- Key validation via remote Keys.json; clean key input (white text) and stable submit button.
--- After valid key, Rayfield UI loads and full original features are enabled.
+--// FINAL DXPLOIT VIP v12 (Merged + Hide Nickname tab)
+-- Full features + Clean KeyBox + Hide Nickname integrated (Script tab renamed)
+-- Removed Fly GUI V3 and Infinite Yield as requested
 
 -- Services
 local RunService = game:GetService("RunService")
@@ -247,10 +247,33 @@ askKey(function(keyInfo, usedKey)
     end
 
     -- ========== Features (full) ==========
-    -- Create Tabs (as in original)
+-- Create Tabs (as in original)
     local TabAuto   = Window:CreateTab("AUTO SUMMIT", 4483362458)
     local TabWalk   = Window:CreateTab("AUTO WALK", 4483362458)
     local TabTp     = Window:CreateTab("PUNCAK", 4483362458)
+    local TabHide   = Window:CreateTab("Hide Nickname", 4483362458) -- renamed Script -> Hide Nickname
+
+TabHide:CreateToggle({
+    Name = "Self Nickname Spoof",
+    CurrentValue = getgenv().selfEnabled or false,
+    Callback = function(state)
+        getgenv().selfEnabled = state
+        if _G.DXPLOIT_HideNick then
+            _G.DXPLOIT_HideNick.ApplySelf()
+        end
+    end
+})
+
+TabHide:CreateToggle({
+    Name = "Global Nickname Spoof",
+    CurrentValue = getgenv().globalEnabled or false,
+    Callback = function(state)
+        getgenv().globalEnabled = state
+        if _G.DXPLOIT_HideNick then
+            _G.DXPLOIT_HideNick.ApplyGlobal()
+        end
+    end
+})
     local TabMisc   = Window:CreateTab("SCRIPT", 4483362458)
     local TabHub    = Window:CreateTab("ANIMASI", 4483362458)
     local TabCre    = Window:CreateTab("TITLE", 4483362458)
@@ -477,9 +500,7 @@ askKey(function(keyInfo, usedKey)
     createTitleButton("💎 VIP 💎", "💎 VIP 💎", Color3.fromRGB(0, 255, 255))
     createTitleButton("🏆 TOP DONATUR 🏆", "🏆 TOP DONATUR 🏆", Color3.fromRGB(255, 200, 0))
 
-    -- MISC SCRIPTS
-    TabMisc:CreateButton({ Name="FLY GUI V3", Callback=function() pcall(function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Gui-Fly-v3-37111"))() end) end })
-    TabMisc:CreateButton({ Name="INFINITE YIELD", Callback=function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))() end) end })
+    -- MISC SCRIPTS (removed Fly GUI V3 & Infinite Yield per request)
     TabMisc:CreateButton({ Name="SPEED COIL", Callback=function()
         local player = Players.LocalPlayer; local speedValue = 23
         local function giveCoil(char)
@@ -496,33 +517,29 @@ askKey(function(keyInfo, usedKey)
     TabMisc:CreateButton({ Name="BRING PART", Callback=function() pcall(function() loadstring(game:HttpGet("https://gist.githubusercontent.com/tarz2642008-ship-it/ed8e924b00a9a2b87b57c722498cad9c/raw/f43d555c085bc86a24da8f081b7db4103efc16d9/RingPart"))() end) end })
     TabMisc:CreateButton({ Name="FLING GUI", Callback=function() pcall(function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Fling-Gui-Op-47914"))() end) end })
     TabMisc:CreateButton({ Name="INFINITE JUMP", Callback=function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/WataXScript/WataXCheat/refs/heads/main/Loader/infjump.lua"))() end) end })
-
     TabMisc:CreateButton({ Name="BOOST FPS", Callback=function() repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer; pcall(function() loadstring(game:HttpGet("https://pastefy.app/08huVciY/raw"))() end) end })
-
     TabMisc:CreateButton({ Name="TP TOOL", Callback=function()
         local player = Players.LocalPlayer; local mouse = player:GetMouse()
         local tool = Instance.new("Tool"); tool.RequiresHandle=false; tool.Name="TP Tool"; tool.Parent = player.Backpack
         tool.Activated:Connect(function() if mouse.Hit then local char = player.Character; if char and char:FindFirstChild("HumanoidRootPart") then char.HumanoidRootPart.CFrame = CFrame.new(mouse.Hit.p + Vector3.new(0,3,0)) end end end)
     end })
-
     TabMisc:CreateSlider({ Name="WalkSpeed", Range={10,500}, Increment=1, CurrentValue=15, Suffix="Speed", Callback=function(Value) local char = Players.LocalPlayer.Character; if char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = Value end end })
     TabMisc:CreateSlider({ Name="Jump Height", Range={10,500}, Increment=1, CurrentValue=50, Suffix="Height", Callback=function(Value) local char = Players.LocalPlayer.Character; if char and char:FindFirstChild("Humanoid") then char.Humanoid.JumpPower = Value end end })
 
-    -- AUTO WALK loaders
+    -- AUTO WALK loaders (full list)
     local function run(url)
         local ok,res = pcall(function() return loadstring(game:HttpGet(url))() end)
         if not ok then warn("[AUTO WALK] Gagal load:",res) end
     end
 
     TabWalk:CreateButton({ Name="Bypass", Callback=function() run("https://raw.githubusercontent.com/WataXScript/WataXMountYahayuk1/main/Loader/WataX.lua") end })
-
     TabWalk:CreateButton({ Name="Gunung Atin", Callback=function() run("https://raw.githubusercontent.com/WataXScript/WataXMountAtin/main/Loader/mainmap792.lua") end })
     TabWalk:CreateButton({ Name="Gunung Yahayuk", Callback=function() run("https://raw.githubusercontent.com/WataXScript/WataXMountYahayuk1/main/Loader/mainmap970.lua") end })
     TabWalk:CreateButton({ Name="Gunung Antartika", Callback=function() run("https://raw.githubusercontent.com/WataXScript/WataXAntartika157/main/Loader/mainmap273.lua") end })
     TabWalk:CreateButton({ Name="Gunung Lembayana", Callback=function() run("https://raw.githubusercontent.com/WataXScript/WataXMountLembayana/main/Loader/mainmap993.lua") end })
     TabWalk:CreateButton({ Name="Gunung Daun", Callback=function() run("https://raw.githubusercontent.com/WataXScript/WataXMountDaun/main/Loader/mainmap926.lua") end })
 
-    -- AUTO SUMMIT system
+    -- AUTO SUMMIT system (full list)
     local player = Players.LocalPlayer
 
     local function createAutoSummit(name, positions, respawnDelay, stepDelay, options)
@@ -559,7 +576,7 @@ askKey(function(keyInfo, usedKey)
         TabTp:CreateButton({ Name = "PUNCAK " .. name, Callback = function() local c = player.Character if c and c:FindFirstChild("HumanoidRootPart") then c.HumanoidRootPart.CFrame = positions[#positions] end end })
     end
 
-    -- full mounts list
+    -- full mounts list (copied from original)
     createAutoSummit("MOUNT ATIN", { CFrame.new(624.79, 1801.43, 3432.24), CFrame.new(781.23, 2166.03, 3921.29) }, 3, 4)
     createAutoSummit("MOUNT CING", { CFrame.new(331.84, 139.41, 829.17), CFrame.new(137.58, 79.41, 355.69), CFrame.new(53.14, 79.41, 28.00), CFrame.new(747.08, 127.41, 356.06), CFrame.new(676.80, 131.41, -764.56), CFrame.new(241.03, 251.41, -469.02), CFrame.new(-504.51, 437.00, -399.26), CFrame.new(-1336.50, 423.41, -444.37), CFrame.new(-1837.70, 493.00, -111.90), CFrame.new(-2196.33, 783.41, 985.90), CFrame.new(-1491.83, 1288.89, 1066.64) }, 3, 4)
     createAutoSummit("MOUNT SUMBING", { CFrame.new(-225.54, 441.00, 2142.43), CFrame.new(-427.57, 849.00, 3204.18), CFrame.new(41.93, 1269.00, 4044.11), CFrame.new(-1142.34, 1553.00, 4899.95), CFrame.new(-896.04, 1948.29, 5352.81) }, 3, 4)
@@ -738,3 +755,206 @@ askKey(function(keyInfo, usedKey)
     end)
 
 end) -- end askKey callback
+
+-------------------------------------------------------
+-- HIDE NICKNAME SYSTEM (client-side)
+-- Integrated so toggles in Hide Nickname tab control this.
+-------------------------------------------------------
+do
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+
+    local CUSTOM_NAME = "DXPLOIT MEMBER"
+    local CUSTOM_TAG = "@DXPLOITGG"
+
+    -- global flags (accessible from Tab callbacks)
+    if getgenv().selfEnabled == nil then getgenv().selfEnabled = false end
+    if getgenv().globalEnabled == nil then getgenv().globalEnabled = false end
+
+    -- Utility: safe wait
+    local function safeWait(t)
+        if t and t > 0 then task.wait(t) end
+    end
+
+    -- RGB applier (ini akan berhenti jika atribut "dxp_rgb" dihapus/set false)
+    local function startRGBLoop(textLabel)
+        if not textLabel or not textLabel.Parent then return end
+        if textLabel:GetAttribute("dxp_rgb_running") then return end
+        textLabel:SetAttribute("dxp_rgb_running", true)
+        textLabel:SetAttribute("dxp_rgb", true)
+        task.spawn(function()
+            local t = 0
+            while textLabel.Parent and textLabel:GetAttribute("dxp_rgb") do
+                local r = math.floor((math.sin(t) * 0.5 + 0.5) * 255)
+                local g = math.floor((math.sin(t + 2) * 0.5 + 0.5) * 255)
+                local b = math.floor((math.sin(t + 4) * 0.5 + 0.5) * 255)
+                pcall(function() textLabel.TextColor3 = Color3.fromRGB(r,g,b) end)
+                t = t + 0.12
+                task.wait(0.08)
+            end
+            textLabel:SetAttribute("dxp_rgb_running", false)
+        end)
+    end
+
+    local function stopRGB(textLabel)
+        if textLabel then
+            textLabel:SetAttribute("dxp_rgb", false)
+        end
+    end
+
+    -- Replace a single TextLabel (store original text if not stored)
+    local function replaceLabelText(textLabel, newText, applyRGBFlag)
+        if not textLabel then return end
+        if not textLabel:GetAttribute("dxp_orig_text") then
+            textLabel:SetAttribute("dxp_orig_text", textLabel.Text)
+        end
+        textLabel.Text = newText
+        if applyRGBFlag then
+            startRGBLoop(textLabel)
+        else
+            stopRGB(textLabel)
+            textLabel.TextColor3 = Color3.fromRGB(255,255,255)
+        end
+    end
+
+    -- Restore a single TextLabel to its original text if we modified it
+    local function restoreLabelText(textLabel)
+        if not textLabel then return end
+        local orig = textLabel:GetAttribute("dxp_orig_text")
+        if orig then
+            textLabel.Text = orig
+            textLabel:SetAttribute("dxp_orig_text", nil)
+        end
+        stopRGB(textLabel)
+    end
+
+    -- Core: try to replace name/tag for given player's character (client-side only)
+    local function spoofCharacterForPlayer(char, player, doName, doTag)
+        if not char or not char.Parent then return end
+        local head = char:FindFirstChild("Head")
+        if not head then
+            head = char:WaitForChild("Head", 5)
+            if not head then return end
+        end
+
+        for _, gui in pairs(head:GetChildren()) do
+            if gui:IsA("BillboardGui") then
+                for _, obj in pairs(gui:GetDescendants()) do
+                    if obj:IsA("TextLabel") then
+                        -- DisplayName match (some games show DisplayName)
+                        if doName and (obj.Text == player.DisplayName or obj.Text == player.Name) then
+                            replaceLabelText(obj, CUSTOM_NAME, true)
+                        end
+                        -- Username match (usually starts with '@' or equals '@Name')
+                        if doTag and (obj.Text == ("@"..player.Name) or string.find(obj.Text, "@"..player.Name)) then
+                            replaceLabelText(obj, CUSTOM_TAG, false)
+                            -- ensure white
+                            pcall(function() obj.TextColor3 = Color3.fromRGB(255,255,255) end)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Restore labels in a character that we previously modified
+    local function restoreCharacterLabels(char, player)
+        if not char or not char.Parent then return end
+        local head = char:FindFirstChild("Head")
+        if not head then
+            head = char:FindFirstChildWhichIsA("BasePart") -- fallback
+        end
+        if not head then return end
+
+        for _, gui in pairs(head:GetChildren()) do
+            if gui:IsA("BillboardGui") then
+                for _, obj in pairs(gui:GetDescendants()) do
+                    if obj:IsA("TextLabel") then
+                        restoreLabelText(obj)
+                    end
+                end
+            end
+        end
+    end
+
+    -- Apply toggles to all current players (used when enabling/disabling global)
+    local function applyGlobalState()
+        for _, player in pairs(Players:GetPlayers()) do
+            if player.Character then
+                if getgenv().globalEnabled then
+                    spoofCharacterForPlayer(player.Character, player, true, true)
+                else
+                    restoreCharacterLabels(player.Character, player)
+                end
+            end
+        end
+    end
+
+    -- Apply self toggle (only for local player)
+    local function applySelfState()
+        if LocalPlayer.Character then
+            if getgenv().selfEnabled then
+                spoofCharacterForPlayer(LocalPlayer.Character, LocalPlayer, true, true)
+            else
+                restoreCharacterLabels(LocalPlayer.Character, LocalPlayer)
+            end
+        end
+    end
+
+    -- Listeners: apply for players as they (re)spawn or join
+    Players.PlayerAdded:Connect(function(player)
+        player.CharacterAdded:Connect(function(char)
+            safeWait(1)
+            if player == LocalPlayer then
+                -- if self toggle is on, always apply
+                if getgenv().selfEnabled then
+                    spoofCharacterForPlayer(char, player, true, true)
+                end
+                -- if global is on, also apply (local client)
+                if getgenv().globalEnabled then
+                    spoofCharacterForPlayer(char, player, true, true)
+                end
+            else
+                -- other players
+                if getgenv().globalEnabled then
+                    spoofCharacterForPlayer(char, player, true, true)
+                end
+            end
+        end)
+    end)
+
+    -- existing players' characters
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.Character then
+            -- apply initial states if toggles on
+            if player == LocalPlayer and getgenv().selfEnabled then
+                spoofCharacterForPlayer(player.Character, player, true, true)
+            end
+            if getgenv().globalEnabled then
+                spoofCharacterForPlayer(player.Character, player, true, true)
+            end
+        end
+        -- connect respawn listener (in case PlayerAdded not fired for them)
+        player.CharacterAdded:Connect(function(char)
+            safeWait(1)
+            if player == LocalPlayer then
+                if getgenv().selfEnabled then spoofCharacterForPlayer(char, player, true, true) end
+                if getgenv().globalEnabled then spoofCharacterForPlayer(char, player, true, true) end
+            else
+                if getgenv().globalEnabled then spoofCharacterForPlayer(char, player, true, true) end
+            end
+        end)
+    end
+
+    -- Expose small API so Tab callbacks can call apply functions if needed
+    if not _G.DXPLOIT_HideNick then
+        _G.DXPLOIT_HideNick = {
+            ApplySelf = applySelfState,
+            ApplyGlobal = applyGlobalState,
+            SetCustomName = function(s) CUSTOM_NAME = s end,
+            SetCustomTag = function(s) CUSTOM_TAG = s end
+        }
+    end
+end
+
+-- EOF
