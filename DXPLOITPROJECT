@@ -1,0 +1,740 @@
+-- DXPLOIT Premium (Final - Full Features + Clean KeyBox)
+-- Key validation via remote Keys.json; clean key input (white text) and stable submit button.
+-- After valid key, Rayfield UI loads and full original features are enabled.
+
+-- Services
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
+
+-- CONFIG
+local KEYS_URL = "https://raw.githubusercontent.com/indiaacacyah-ship-it/DXPLOIT-PROJECT/main/Keys.json"
+local AUTO_REFRESH_INTERVAL = 300 -- seconds
+local ALERT_THRESHOLD_DAYS = 1 -- pre-expiry alert threshold in days
+
+-- Helpers: fetch keys, format dates, remaining time
+local function fetchKeys()
+    local ok, res = pcall(function() return game:HttpGet(KEYS_URL) end)
+    if not ok then return nil, res end
+    local ok2, data = pcall(function() return HttpService:JSONDecode(res) end)
+    if not ok2 then return nil, data end
+    return data, nil
+end
+
+local function formatDate(ts)
+    local t = os.date("*t", ts)
+    return string.format("%02d-%02d-%04d %02d:%02d:%02d", t.day, t.month, t.year, t.hour, t.min, t.sec)
+end
+
+local function getRemainingParts(ts)
+    local remaining = ts - os.time()
+    if remaining < 0 then remaining = 0 end
+    local days = math.floor(remaining / 86400)
+    local hours = math.floor((remaining % 86400) / 3600)
+    local mins = math.floor((remaining % 3600) / 60)
+    local secs = remaining % 60
+    return remaining, days, hours, mins, secs
+end
+
+local function formatRemaining(ts)
+    local remaining, days, hours, mins, secs = getRemainingParts(ts)
+    return string.format("%d hari %02d:%02d:%02d", days, hours, mins, secs), remaining
+end
+
+-- Validate key from remote JSON (supports permanent, monthly, weekly, owner binding)
+local function checkKey(inputKey, userId)
+    local tbl, err = fetchKeys()
+    if not tbl then return false, "Gagal fetch key: "..tostring(err) end
+    local entry = tbl.keys[inputKey]
+    if not entry then return false, "Key tidak ditemukan" end
+    if entry.type == "permanent" then
+        if entry.owner and entry.owner ~= userId then return false, "Key bukan milik kamu" end
+        return true, { type = "permanent" }
+    elseif entry.type == "monthly" then
+        if not entry.expiry then return false, "Key monthly tanpa expiry" end
+        if os.time() > tonumber(entry.expiry) then return false, "Key sudah kadaluarsa" end
+        if entry.owner and entry.owner ~= userId then return false, "Key bukan milik kamu" end
+        return true, { type = "monthly", expiry = tonumber(entry.expiry) }
+    elseif entry.type == "weekly" then
+        if not entry.expiry then return false, "Key weekly tanpa expiry" end
+        if os.time() > tonumber(entry.expiry) then return false, "Key sudah kadaluarsa" end
+        if entry.owner and entry.owner ~= userId then return false, "Key bukan milik kamu" end
+        return true, { type = "weekly", expiry = tonumber(entry.expiry) }
+    end
+    return false, "Format key tidak dikenal"
+end
+
+-- Create KeyBox UI (clean input, stable submit) with RGB stroke
+local function askKey(onSuccess)
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "DX_KeyPrompt"
+    gui.ResetOnSpawn = false
+    gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+    local frame = Instance.new("Frame", gui)
+    frame.Size = UDim2.new(0, 420, 0, 260)
+    frame.Position = UDim2.new(0.5, -210, 0.45, 0)
+    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    frame.BackgroundColor3 = Color3.fromRGB(18,18,18)
+    frame.BorderSizePixel = 0
+    frame.ClipsDescendants = true
+
+    local corner = Instance.new("UICorner", frame)
+    corner.CornerRadius = UDim.new(0,12)
+
+    -- RGB stroke (animated)
+    local stroke = Instance.new("UIStroke", frame)
+    stroke.Thickness = 4
+    stroke.Color = Color3.fromRGB(0, 255, 150)
+    spawn(function()
+        local hue = 0
+        while stroke.Parent do
+            hue = (hue + 2) % 360
+            stroke.Color = Color3.fromHSV(hue/360,1,1)
+            task.wait(0.03)
+        end
+    end)
+
+    -- Title
+    local title = Instance.new("TextLabel", frame)
+    title.Size = UDim2.new(1, -24, 0, 40)
+    title.Position = UDim2.new(0,12,0,8)
+    title.BackgroundTransparency = 1
+    title.Text = "DXPLOIT - Masukkan Key Premium"
+    title.Font = Enum.Font.SourceSansBold
+    title.TextSize = 20
+    title.TextColor3 = Color3.fromRGB(255,255,255)
+    title.TextXAlignment = Enum.TextXAlignment.Left
+
+    -- Input box (clean white text)
+    local box = Instance.new("TextBox", frame)
+    box.Size = UDim2.new(0.92,0,0,40)
+    box.Position = UDim2.new(0.04,0,0,56)
+    box.PlaceholderText = "Masukkan key..."
+    box.Text = ""
+    box.ClearTextOnFocus = false
+    box.Font = Enum.Font.SourceSans
+    box.TextSize = 16
+    box.BackgroundColor3 = Color3.fromRGB(28,28,28)
+    box.TextColor3 = Color3.fromRGB(255,255,255) -- white plain text
+    box.BorderSizePixel = 0
+    local bcorner = Instance.new("UICorner", box)
+    bcorner.CornerRadius = UDim.new(0,8)
+    local bstroke = Instance.new("UIStroke", box)
+    bstroke.Thickness = 1
+    bstroke.Color = Color3.fromRGB(50,50,50)
+
+    -- Submit (stable blue) and Cancel (grey)
+    local submit = Instance.new("TextButton", frame)
+    submit.Size = UDim2.new(0.44,0,0,40)
+    submit.Position = UDim2.new(0.05,0,0,110)
+    submit.Text = "Submit"
+    submit.Font = Enum.Font.SourceSansBold
+    submit.TextSize = 16
+    submit.TextColor3 = Color3.fromRGB(255,255,255)
+    submit.BackgroundColor3 = Color3.fromRGB(60,130,255) -- stable blue
+    local scorner = Instance.new("UICorner", submit)
+    scorner.CornerRadius = UDim.new(0,8)
+
+    local cancel = Instance.new("TextButton", frame)
+    cancel.Size = UDim2.new(0.44,0,0,40)
+    cancel.Position = UDim2.new(0.51,0,0,110)
+    cancel.Text = "Cancel"
+    cancel.Font = Enum.Font.SourceSansBold
+    cancel.TextSize = 16
+    cancel.TextColor3 = Color3.fromRGB(255,255,255)
+    cancel.BackgroundColor3 = Color3.fromRGB(100,100,100) -- neutral grey
+    local ccorner = Instance.new("UICorner", cancel)
+    ccorner.CornerRadius = UDim.new(0,8)
+
+    -- Message label
+    local msg = Instance.new("TextLabel", frame)
+    msg.Size = UDim2.new(1, -24, 0, 36)
+    msg.Position = UDim2.new(0,12,0,162)
+    msg.BackgroundTransparency = 1
+    msg.TextColor3 = Color3.fromRGB(255,120,120)
+    msg.Font = Enum.Font.SourceSans
+    msg.TextSize = 14
+    msg.Text = ""
+    msg.TextWrapped = true
+
+    -- Note area (kept, subtle rainbow)
+    local note = Instance.new("TextLabel", frame)
+    note.Size = UDim2.new(1, -24, 0, 64)
+    note.Position = UDim2.new(0,12,0,200)
+    note.BackgroundTransparency = 1
+    note.Font = Enum.Font.SourceSansBold
+    note.TextSize = 13
+    note.TextWrapped = true
+    note.Text = "AREA KHUSUS MEMBER PREMIUM DXPLOIT\nJIKA INGIN MEMBELI KEY PREMIUM LANGSUNG KE TELEGRAM @DUTZVIP"
+    note.TextXAlignment = Enum.TextXAlignment.Left
+    note.TextYAlignment = Enum.TextYAlignment.Top
+    spawn(function()
+        local hue = 0
+        while note.Parent do
+            hue = (hue + 3) % 360
+            note.TextColor3 = Color3.fromHSV(hue/360, 0.9, 0.95)
+            task.wait(0.08)
+        end
+    end)
+
+    -- Submit logic
+    local function trySubmit()
+        local key = box.Text or ""
+        if key == "" then
+            msg.Text = "Masukkan key terlebih dahulu"
+            return
+        end
+        msg.Text = "Memeriksa key..."
+        task.spawn(function()
+            local ok, info = checkKey(key, LocalPlayer.UserId)
+            if ok then
+                pcall(function() gui:Destroy() end)
+                onSuccess(info, key)
+            else
+                msg.Text = tostring(info)
+            end
+        end)
+    end
+
+    submit.MouseButton1Click:Connect(trySubmit)
+    cancel.MouseButton1Click:Connect(function() pcall(function() gui:Destroy() end) end)
+    box.FocusLost:Connect(function(enter) if enter then trySubmit() end end)
+end
+
+-- Main flow: ask for key then load UI/features
+askKey(function(keyInfo, usedKey)
+    -- Attempt to load Rayfield (pcall)
+    local ok, Rayfield = pcall(function() return loadstring(game:HttpGet("https://sirius.menu/rayfield"))() end)
+    if not ok or not Rayfield then
+        -- Fallback: try alternative Rayfield raw url if the main fails
+        local ok2, rf2 = pcall(function() return loadstring(game:HttpGet("https://raw.githubusercontent.com/SiriusSoftwareLtd/Rayfield/main/source.lua"))() end)
+        if ok2 and rf2 then
+            Rayfield = rf2
+        else
+            -- both fail -> show fallback message and stop
+            warn("Gagal load Rayfield UI. Pastikan executor mengizinkan HttpGet dan URL tersedia.")
+            local gui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+            gui.Name = "DXPLOIT_FallbackNotify"
+            local lbl = Instance.new("TextLabel", gui)
+            lbl.Size = UDim2.new(0.6,0,0,60)
+            lbl.Position = UDim2.new(0.2,0,0.05,0)
+            lbl.BackgroundColor3 = Color3.fromRGB(20,20,20)
+            lbl.TextColor3 = Color3.fromRGB(255,255,255)
+            lbl.Text = "Rayfield gagal dimuat. Coba executor lain."
+            task.delay(6, function() pcall(function() gui:Destroy() end) end)
+            return
+        end
+    end
+
+    -- Create window (don't use Rayfield KeySystem; we handle keys externally)
+    local Window = Rayfield:CreateWindow({
+        Name = "Script Premium By DXPLOIT",
+        LoadingTitle = "DXPLOIT",
+        LoadingSubtitle = "Script Premium By DXPLOIT",
+        ConfigurationSaving = { Enabled = true, FolderName = nil, FileName = "_Config" },
+        Discord = { Enabled = false }
+    })
+
+    -- Notify once about key status
+    if keyInfo.type == "permanent" then
+        if Rayfield.Notify then Rayfield:Notify({ Title = "DXPLOIT HUB", Content = "Key valid (Permanent). Welcome!", Duration = 5 }) end
+    else
+        local expStr = formatDate(keyInfo.expiry)
+        local remainStr = formatRemaining(keyInfo.expiry)
+        if Rayfield.Notify then Rayfield:Notify({ Title = "DXPLOIT HUB", Content = "Key valid ("..tostring(keyInfo.type)..") - Berlaku sampai: "..expStr.."\nSisa: "..remainStr, Duration = 8 }) end
+    end
+
+    -- ========== Features (full) ==========
+    -- Create Tabs (as in original)
+    local TabAuto   = Window:CreateTab("AUTO SUMMIT", 4483362458)
+    local TabWalk   = Window:CreateTab("AUTO WALK", 4483362458)
+    local TabTp     = Window:CreateTab("PUNCAK", 4483362458)
+    local TabMisc   = Window:CreateTab("SCRIPT", 4483362458)
+    local TabHub    = Window:CreateTab("ANIMASI", 4483362458)
+    local TabCre    = Window:CreateTab("TITLE", 4483362458)
+
+    -- ANIMASI (sparkles)
+    local currentMode, animating = nil, false
+
+    local function applySparkles(character)
+        local parts = {"HumanoidRootPart","Head","LeftHand","RightHand","LeftFoot","RightFoot"}
+        local sparklesList = {}
+        for _, partName in ipairs(parts) do
+            local part = character:FindFirstChild(partName)
+            if part then
+                local spark = part:FindFirstChild("Sparkles")
+                if not spark then
+                    spark = Instance.new("Sparkles")
+                    spark.Parent = part
+                end
+                table.insert(sparklesList, spark)
+            end
+        end
+        return sparklesList
+    end
+
+    local function startAnimation(mode, sparklesList)
+        currentMode = mode; animating = true
+        task.spawn(function()
+            local t = 0
+            while animating and currentMode == mode and #sparklesList > 0 do
+                t = t + 0.1
+                for _, s in ipairs(sparklesList) do
+                    if mode == "DISCO" then
+                        s.SparkleColor = Color3.fromHSV((tick()%5)/5,1,1)
+                    elseif mode == "PURPLE" then
+                        s.SparkleColor = Color3.fromRGB(160,32,240)
+                    elseif mode == "CYAN" then
+                        -- keep default or set cyan
+                        s.SparkleColor = Color3.fromRGB(0,200,255)
+                    elseif mode == "FIRE" then
+                        local r = 200 + math.random(-20,20)
+                        local g = math.random(50,100)
+                        local b = 0
+                        s.SparkleColor = Color3.fromRGB(r,g,b)
+                    elseif mode == "ICE" then
+                        local r = 100 + math.random(-30,30)
+                        local g = 200 + math.random(-30,30)
+                        local b = 255
+                        s.SparkleColor = Color3.fromRGB(r,g,b)
+                    elseif mode == "GALAXY" then
+                        local colors = {
+                            Color3.fromRGB(75,0,130),
+                            Color3.fromRGB(138,43,226),
+                            Color3.fromRGB(199,21,133),
+                            Color3.fromRGB(25,25,112)
+                        }
+                        s.SparkleColor = colors[math.random(1,#colors)]
+                    elseif mode == "NEON" then
+                        s.SparkleColor = Color3.fromRGB(
+                            math.random(150,255),
+                            math.random(150,255),
+                            math.random(150,255)
+                        )
+                    elseif mode == "FLASH" then
+                        if math.floor(t*5) % 2 == 0 then
+                            s.SparkleColor = Color3.fromRGB(255,255,255)
+                        else
+                            s.SparkleColor = Color3.fromRGB(0,0,0)
+                        end
+                    end
+                end
+                task.wait(0.15)
+            end
+        end)
+    end
+
+    TabHub:CreateButton({ Name="DISCO", Callback=function() animating=false; startAnimation("DISCO", applySparkles(LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait())) end })
+    TabHub:CreateButton({ Name="PURPLE", Callback=function() animating=false; startAnimation("PURPLE", applySparkles(LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait())) end })
+    TabHub:CreateButton({ Name="CYAN", Callback=function() animating=false; startAnimation("CYAN", applySparkles(LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait())) end })
+
+    Players.LocalPlayer.CharacterAdded:Connect(function(char)
+        if currentMode then task.wait(1); startAnimation(currentMode, applySparkles(char)) end
+    end)
+
+    -- TITLE preview + apply
+    local previewScreenGui = nil
+    local previewLabel = nil
+
+    local TitleText = ""
+    local PreviewOffsetX = -200
+    local PreviewOffsetY = 20
+    local PreviewFontSize = 32
+    local PreviewColor = Color3.fromRGB(0,255,255)
+    local PreviewMode = "SOLID"
+
+    local function ensurePreviewGUI()
+        local pg = LocalPlayer:WaitForChild("PlayerGui")
+        previewScreenGui = pg:FindFirstChild("_PreviewGuiX")
+        if not previewScreenGui then
+            previewScreenGui = Instance.new("ScreenGui")
+            previewScreenGui.Name = "_PreviewGuiX"
+            previewScreenGui.ResetOnSpawn = false
+            previewScreenGui.Parent = pg
+        end
+
+        previewLabel = previewScreenGui:FindFirstChild("_PreviewLabelX")
+        if not previewLabel then
+            previewLabel = Instance.new("TextLabel")
+            previewLabel.Name = "_PreviewLabelX"
+            previewLabel.Size = UDim2.new(0, 400, 0, 50)
+            previewLabel.Position = UDim2.new(0.5, PreviewOffsetX, 0, PreviewOffsetY)
+            previewLabel.AnchorPoint = Vector2.new(0.5, 0)
+            previewLabel.BackgroundTransparency = 1
+            previewLabel.Text = TitleText
+            previewLabel.Font = Enum.Font.SourceSansBold
+            previewLabel.TextSize = PreviewFontSize
+            previewLabel.TextColor3 = PreviewColor
+            previewLabel.Parent = previewScreenGui
+        end
+    end
+
+    ensurePreviewGUI()
+
+    RunService.RenderStepped:Connect(function()
+        if not previewLabel then ensurePreviewGUI() end
+        if previewLabel then
+            previewLabel.Text = TitleText or ""
+            previewLabel.TextSize = PreviewFontSize
+            previewLabel.Position = UDim2.new(0.5, PreviewOffsetX, 0, PreviewOffsetY)
+            if PreviewMode == "RAINBOW" then
+                local hue = (tick() % 5) / 5
+                previewLabel.TextColor3 = Color3.fromHSV(hue, 1, 1)
+            elseif PreviewMode == "PULSE" then
+                local t = tick()
+                local v = (math.sin(t*3) + 1) / 2
+                local g = math.clamp(math.floor(v*255),0,255)
+                previewLabel.TextColor3 = Color3.fromRGB(255, g, g)
+            else
+                previewLabel.TextColor3 = PreviewColor
+            end
+        end
+    end)
+
+    -- Title controls
+    TabCre:CreateInput({ Name = "Custom Title (Live Preview)", PlaceholderText = "Ketik title...", RemoveTextAfterFocusLost = false, Callback = function(text) TitleText = text if previewLabel then previewLabel.Text = TitleText end end })
+
+    TabCre:CreateSlider({ Name = "Preview Font Size", Range = {10, 72}, Increment = 1, Suffix = "px", CurrentValue = PreviewFontSize, Callback = function(size) PreviewFontSize = size end })
+
+    TabCre:CreateSlider({ Name = "Preview Offset X", Range = {-400, 400}, Increment = 10, CurrentValue = PreviewOffsetX, Callback = function(val) PreviewOffsetX = val end })
+
+    TabCre:CreateSlider({ Name = "Preview Offset Y", Range = {-300, 300}, Increment = 10, CurrentValue = PreviewOffsetY, Callback = function(val) PreviewOffsetY = val end })
+
+    TabCre:CreateColorPicker({ Name = "Custom Title Color (Preview)", Color = PreviewColor, Callback = function(color) PreviewColor = color end })
+
+    TabCre:CreateToggle({ Name = "Rainbow Preview", CurrentValue = false, Callback = function(state) if state then PreviewMode = "RAINBOW" else PreviewMode = "SOLID" end end })
+
+    TabCre:CreateDropdown({ Name = "Title Color Mode (Apply)", Options = { "SOLID", "RAINBOW", "PULSE" }, CurrentOption = "SOLID", Callback = function(v) PreviewMode = v end })
+
+    TabCre:CreateButton({ Name = "Apply Custom Title To Head", Callback = function()
+        local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        local head = char:FindFirstChild("Head")
+        if head then
+            if head:FindFirstChild("AdminTag") then head.AdminTag:Destroy() end
+            local billboard = Instance.new("BillboardGui", head)
+            billboard.Name = "AdminTag"; billboard.Size = UDim2.new(0,200,0,50); billboard.StudsOffset = Vector3.new(0, 3, 0); billboard.AlwaysOnTop = true; billboard.LightInfluence = 0
+            local text = Instance.new("TextLabel", billboard)
+            text.Size = UDim2.new(1,0,1,0); text.BackgroundTransparency = 1; text.Text = (TitleText~="" and TitleText) or "CUSTOM TITLE"
+            text.TextStrokeTransparency = 0; text.Font = Enum.Font.SourceSansBold; text.TextSize = PreviewFontSize
+
+            if PreviewMode == "SOLID" then
+                text.TextColor3 = PreviewColor
+            elseif PreviewMode == "RAINBOW" then
+                spawn(function() while text.Parent do text.TextColor3 = Color3.fromHSV((tick()%5)/5,1,1); task.wait(0.1) end end)
+            elseif PreviewMode == "PULSE" then
+                spawn(function() local t=0; while text.Parent do t = t + 0.1; local v = (math.sin(t*4) + 1) * 127; text.TextColor3 = Color3.fromRGB(255, math.clamp(math.floor(v),0,255), math.clamp(math.floor(v),0,255)); task.wait(0.1) end end)
+            end
+        end
+    end })
+
+    -- Preset titles
+    local function createTitleButton(name, textContent, colorOverride)
+        TabCre:CreateButton({
+            Name = name,
+            Callback = function()
+                local player = Players.LocalPlayer
+                local char   = player.Character or player.CharacterAdded:Wait()
+                local head   = char:WaitForChild("Head")
+
+                if head:FindFirstChild("AdminTag") then
+                    head.AdminTag:Destroy()
+                end
+
+                local billboard = Instance.new("BillboardGui")
+                billboard.Name = "AdminTag"
+                billboard.Parent = head
+                billboard.Size = UDim2.new(0, 220, 0, 50)
+                billboard.StudsOffset = Vector3.new(0, 3, 0)
+                billboard.AlwaysOnTop = true
+                billboard.LightInfluence = 0
+
+                local text = Instance.new("TextLabel")
+                text.Parent = billboard
+                text.Size = UDim2.new(1, 0, 1, 0)
+                text.BackgroundTransparency = 1
+                text.Text = textContent
+                text.TextStrokeTransparency = 0
+                text.Font = Enum.Font.SourceSansBold
+                text.TextSize = PreviewFontSize
+
+                if PreviewMode == "SOLID" then
+                    text.TextColor3 = colorOverride or PreviewColor
+                elseif PreviewMode == "RAINBOW" then
+                    spawn(function() while text.Parent do text.TextColor3 = Color3.fromHSV((tick()%5)/5,1,1); task.wait(0.1) end end)
+                elseif PreviewMode == "PULSE" then
+                    spawn(function() local t=0; while text.Parent do t = t + 0.1; local v = (math.sin(t*4) + 1) * 127; text.TextColor3 = Color3.fromRGB(255, math.clamp(math.floor(v),0,255), math.clamp(math.floor(v),0,255)); task.wait(0.1) end end)
+                end
+                LastTitleConfig = {Text = textContent, Color = colorOverride, Mode = PreviewMode, FontSize = PreviewFontSize}
+            end,
+        })
+    end
+
+    createTitleButton("👑 OWNER 👑", "👑 OWNER 👑", Color3.fromRGB(255, 0, 0))
+    createTitleButton("🛡️ HeadAdmin 🛡️", "🛡️ HeadAdmin 🛡️", Color3.fromRGB(160, 32, 240))
+    createTitleButton("👑 ADMIN 👑", "👑 ADMIN 👑", Color3.fromRGB(0, 170, 255))
+    createTitleButton("💎 VIP 💎", "💎 VIP 💎", Color3.fromRGB(0, 255, 255))
+    createTitleButton("🏆 TOP DONATUR 🏆", "🏆 TOP DONATUR 🏆", Color3.fromRGB(255, 200, 0))
+
+    -- MISC SCRIPTS
+    TabMisc:CreateButton({ Name="FLY GUI V3", Callback=function() pcall(function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Gui-Fly-v3-37111"))() end) end })
+    TabMisc:CreateButton({ Name="INFINITE YIELD", Callback=function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))() end) end })
+    TabMisc:CreateButton({ Name="SPEED COIL", Callback=function()
+        local player = Players.LocalPlayer; local speedValue = 23
+        local function giveCoil(char)
+            local backpack = player:WaitForChild("Backpack")
+            if backpack:FindFirstChild("Speed Coil") or char:FindFirstChild("Speed Coil") then return end
+            local tool = Instance.new("Tool"); tool.Name="Speed Coil"; tool.RequiresHandle=false; tool.Parent = backpack
+            tool.Equipped:Connect(function() local humanoid = char:FindFirstChildOfClass("Humanoid"); if humanoid then humanoid.WalkSpeed = speedValue end end)
+            tool.Unequipped:Connect(function() local humanoid = char:FindFirstChildOfClass("Humanoid"); if humanoid then humanoid.WalkSpeed = 16 end end)
+        end
+        if player.Character then giveCoil(player.Character) end
+        player.CharacterAdded:Connect(function(char) task.wait(1); giveCoil(char) end)
+    end })
+
+    TabMisc:CreateButton({ Name="BRING PART", Callback=function() pcall(function() loadstring(game:HttpGet("https://gist.githubusercontent.com/tarz2642008-ship-it/ed8e924b00a9a2b87b57c722498cad9c/raw/f43d555c085bc86a24da8f081b7db4103efc16d9/RingPart"))() end) end })
+    TabMisc:CreateButton({ Name="FLING GUI", Callback=function() pcall(function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Fling-Gui-Op-47914"))() end) end })
+    TabMisc:CreateButton({ Name="INFINITE JUMP", Callback=function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/WataXScript/WataXCheat/refs/heads/main/Loader/infjump.lua"))() end) end })
+
+    TabMisc:CreateButton({ Name="BOOST FPS", Callback=function() repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer; pcall(function() loadstring(game:HttpGet("https://pastefy.app/08huVciY/raw"))() end) end })
+
+    TabMisc:CreateButton({ Name="TP TOOL", Callback=function()
+        local player = Players.LocalPlayer; local mouse = player:GetMouse()
+        local tool = Instance.new("Tool"); tool.RequiresHandle=false; tool.Name="TP Tool"; tool.Parent = player.Backpack
+        tool.Activated:Connect(function() if mouse.Hit then local char = player.Character; if char and char:FindFirstChild("HumanoidRootPart") then char.HumanoidRootPart.CFrame = CFrame.new(mouse.Hit.p + Vector3.new(0,3,0)) end end end)
+    end })
+
+    TabMisc:CreateSlider({ Name="WalkSpeed", Range={10,500}, Increment=1, CurrentValue=15, Suffix="Speed", Callback=function(Value) local char = Players.LocalPlayer.Character; if char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = Value end end })
+    TabMisc:CreateSlider({ Name="Jump Height", Range={10,500}, Increment=1, CurrentValue=50, Suffix="Height", Callback=function(Value) local char = Players.LocalPlayer.Character; if char and char:FindFirstChild("Humanoid") then char.Humanoid.JumpPower = Value end end })
+
+    -- AUTO WALK loaders
+    local function run(url)
+        local ok,res = pcall(function() return loadstring(game:HttpGet(url))() end)
+        if not ok then warn("[AUTO WALK] Gagal load:",res) end
+    end
+
+    TabWalk:CreateButton({ Name="Bypass", Callback=function() run("https://raw.githubusercontent.com/WataXScript/WataXMountYahayuk1/main/Loader/WataX.lua") end })
+
+    TabWalk:CreateButton({ Name="Gunung Atin", Callback=function() run("https://raw.githubusercontent.com/WataXScript/WataXMountAtin/main/Loader/mainmap792.lua") end })
+    TabWalk:CreateButton({ Name="Gunung Yahayuk", Callback=function() run("https://raw.githubusercontent.com/WataXScript/WataXMountYahayuk1/main/Loader/mainmap970.lua") end })
+    TabWalk:CreateButton({ Name="Gunung Antartika", Callback=function() run("https://raw.githubusercontent.com/WataXScript/WataXAntartika157/main/Loader/mainmap273.lua") end })
+    TabWalk:CreateButton({ Name="Gunung Lembayana", Callback=function() run("https://raw.githubusercontent.com/WataXScript/WataXMountLembayana/main/Loader/mainmap993.lua") end })
+    TabWalk:CreateButton({ Name="Gunung Daun", Callback=function() run("https://raw.githubusercontent.com/WataXScript/WataXMountDaun/main/Loader/mainmap926.lua") end })
+
+    -- AUTO SUMMIT system
+    local player = Players.LocalPlayer
+
+    local function createAutoSummit(name, positions, respawnDelay, stepDelay, options)
+        local enabled = false
+        local cancelToken = nil
+        respawnDelay = respawnDelay or 3
+        stepDelay = stepDelay or 4
+        options = options or {}
+        local autoRespawn = (options.autoRespawn ~= false)
+
+        local function start(char)
+            if cancelToken then cancelToken.cancelled = true end
+            local token = { cancelled = false }
+            cancelToken = token
+            task.spawn(function()
+                local hrp = char:WaitForChild("HumanoidRootPart", 10)
+                if not hrp then return end
+                while enabled and not token.cancelled and char.Parent do
+                    for _, pos in ipairs(positions) do
+                        if not enabled or token.cancelled then break end
+                        hrp = char:FindFirstChild("HumanoidRootPart")
+                        if hrp then pcall(function() hrp.CFrame = pos end) end
+                        task.wait(stepDelay)
+                    end
+                    if autoRespawn and enabled and not token.cancelled and char:FindFirstChild("Humanoid") then task.wait(respawnDelay); pcall(function() char:BreakJoints() end) end
+                    task.wait(0.5)
+                end
+            end)
+        end
+
+        player.CharacterAdded:Connect(function(c) if enabled then task.wait(1); start(c) end end)
+
+        TabAuto:CreateToggle({ Name = name, CurrentValue = false, Callback = function(val) enabled = val if enabled and player.Character then start(player.Character) elseif cancelToken then cancelToken.cancelled = true end end })
+        TabTp:CreateButton({ Name = "PUNCAK " .. name, Callback = function() local c = player.Character if c and c:FindFirstChild("HumanoidRootPart") then c.HumanoidRootPart.CFrame = positions[#positions] end end })
+    end
+
+    -- full mounts list
+    createAutoSummit("MOUNT ATIN", { CFrame.new(624.79, 1801.43, 3432.24), CFrame.new(781.23, 2166.03, 3921.29) }, 3, 4)
+    createAutoSummit("MOUNT CING", { CFrame.new(331.84, 139.41, 829.17), CFrame.new(137.58, 79.41, 355.69), CFrame.new(53.14, 79.41, 28.00), CFrame.new(747.08, 127.41, 356.06), CFrame.new(676.80, 131.41, -764.56), CFrame.new(241.03, 251.41, -469.02), CFrame.new(-504.51, 437.00, -399.26), CFrame.new(-1336.50, 423.41, -444.37), CFrame.new(-1837.70, 493.00, -111.90), CFrame.new(-2196.33, 783.41, 985.90), CFrame.new(-1491.83, 1288.89, 1066.64) }, 3, 4)
+    createAutoSummit("MOUNT SUMBING", { CFrame.new(-225.54, 441.00, 2142.43), CFrame.new(-427.57, 849.00, 3204.18), CFrame.new(41.93, 1269.00, 4044.11), CFrame.new(-1142.34, 1553.00, 4899.95), CFrame.new(-896.04, 1948.29, 5352.81) }, 3, 4)
+    createAutoSummit("MOUNT HANAMI", { CFrame.new(515.81, 141.34, -121.60), CFrame.new(359.75, 195.70, -613.76), CFrame.new(-93.18, 169.79, -490.25), CFrame.new(-933.26, 345.41, -512.65), CFrame.new(-1277.02, 477.72, -329.48), CFrame.new(-1975.74, 609.55, 131.92), CFrame.new(-2765.88, 669.34, 44.07), CFrame.new(-2601.37, 848.96, -323.42) }, 1, 3)
+    createAutoSummit("MOUNT ADUH", { CFrame.new(-805.00, 2744.41, 1248.00) }, 3, 4)
+    createAutoSummit("MOUNT GAMPIL", { CFrame.new(570.05, 372.38, 144.33), CFrame.new(364.00, 432.40, -1245.00) }, 1, 0, { autoRespawn = false })
+    createAutoSummit("MOUNT YAHAYUK", { CFrame.new(-420.05, 249.64, 769.69), CFrame.new(-347.92, 388.64, 522.19), CFrame.new(288.00, 429.64, 504.00), CFrame.new(333.85, 490.64, 348.98), CFrame.new(212.54, 314.64, -146.42), CFrame.new(-616.00, 905.38, -510.00) }, 1, 1, { autoRespawn = false })
+    createAutoSummit("MOUNT OWASHU", { CFrame.new(-310.63, 70.94, 631.32), CFrame.new(7.17, 73.05, 1096.95), CFrame.new(-606.59, 253.05, 1226.75), CFrame.new(-1077.02, 328.65, 1416.00), CFrame.new(-1187.75, 488.64, 1787.63), CFrame.new(-1576.99, 670.25, 2322.01) }, 2, 1, { autoRespawn = true })
+    createAutoSummit("MOUNT PASANG SIGMA", { CFrame.new(-54.26, 611.33, -487.00), CFrame.new(580.76, 846.81, 2852.67), CFrame.new(1799.04, 1083.41, 6131.96), CFrame.new(3707.07, 1572.18, 9050.33), CFrame.new(1136.15, 1671.33, 9455.95), CFrame.new(-566.15, 2050.75, 9498.65) }, 2, 2, { autoRespawn = true })
+    createAutoSummit("MOUNT LABIRIN", { CFrame.new(-994.22, 124.47, -253.71), CFrame.new(7.72, 97.16, -372.16), CFrame.new(-66.56, 96.99, 44.85), CFrame.new(183.43, 96.18, 42.60), CFrame.new(772.51, 276.62, 512.32), CFrame.new(1123.88, 368.82, 480.56), CFrame.new(1502.94, 427.30, -366.49), CFrame.new(1169.64, 453.27, -497.46), CFrame.new(712.28, 433.41, -400.81), CFrame.new(934.43, 530.11, -84.31), CFrame.new(1170.98, 545.27, -38.62), CFrame.new(1218.25, 631.96, -79.29), CFrame.new(1158.22, 642.92, -282.00), CFrame.new(900.05, 669.27, -47.27), CFrame.new(1174.73, 805.02, -100.76), CFrame.new(1177.31, 800.85, -181.09) }, 1, 1, { autoRespawn = true })
+
+    -- Title auto-reapply system
+    local LastTitleConfig = nil
+
+    local function SaveTitleConfig(text, color, mode, size)
+        LastTitleConfig = {Text=text, Color=color, Mode=mode, FontSize=size}
+    end
+
+    local function ApplyTitleFromConfig(config)
+        if not config then return end
+        local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        task.wait(1.5)
+        local head = char:FindFirstChild("Head")
+        if not head then return end
+
+        if head:FindFirstChild("AdminTag") then head.AdminTag:Destroy() end
+
+        local billboard = Instance.new("BillboardGui", head)
+        billboard.Name = "AdminTag"
+        billboard.Size = UDim2.new(0,220,0,50)
+        billboard.StudsOffset = Vector3.new(0,3,0)
+        billboard.AlwaysOnTop = true
+        billboard.LightInfluence = 0
+
+        local textLabel = Instance.new("TextLabel", billboard)
+        textLabel.Size = UDim2.new(1,0,1,0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.TextStrokeTransparency = 0
+        textLabel.Font = Enum.Font.SourceSansBold
+        textLabel.TextSize = config.FontSize or 32
+        textLabel.Text = config.Text or "CUSTOM TITLE"
+
+        if config.Mode == "SOLID" then
+            textLabel.TextColor3 = config.Color or Color3.fromRGB(255,255,255)
+        elseif config.Mode == "RAINBOW" then
+            spawn(function() while textLabel.Parent do textLabel.TextColor3 = Color3.fromHSV((tick()%5)/5,1,1); task.wait(0.1) end end)
+        elseif config.Mode == "PULSE" then
+            spawn(function() local t=0; while textLabel.Parent do t=t+0.1; local v=(math.sin(t*4)+1)*127; textLabel.TextColor3=Color3.fromRGB(255,v,v); task.wait(0.1) end end)
+        end
+    end
+
+    Players.LocalPlayer.CharacterAdded:Connect(function()
+        if LastTitleConfig then
+            task.wait(2)
+            ApplyTitleFromConfig(LastTitleConfig)
+        end
+    end)
+
+    -- Force override all "Rayfield" labels to ""
+    task.spawn(function()
+        local cg = game:GetService("CoreGui")
+        local rf = cg:FindFirstChild("Rayfield")
+        if rf then
+            for _,v in ipairs(rf:GetDescendants()) do
+                if v:IsA("TextLabel") and v.Text:find("Rayfield") then
+                    v.Text = ""
+                end
+            end
+        end
+    end)
+
+    -- Patcher: replace "Rayfield" with "DutzzyVIP" where found
+    task.spawn(function()
+        local CoreGui = game:GetService("CoreGui")
+        local rf = CoreGui:FindFirstChild("Rayfield")
+        if rf then
+            for _,v in ipairs(rf:GetDescendants()) do
+                if v:IsA("TextLabel") and v.Text:find("Rayfield") then
+                    v.Text = v.Text:gsub("Rayfield", "DutzzyVIP")
+                end
+            end
+        end
+    end)
+
+    -- Extra animation buttons
+    TabHub:CreateButton({
+        Name="🔥 FIRE 🔥",
+        Callback=function()
+            animating=false
+            local player=game.Players.LocalPlayer
+            local char=player.Character or player.CharacterAdded:Wait()
+            local sparklesList=applySparkles(char)
+            startAnimation("FIRE",sparklesList)
+        end
+    })
+    TabHub:CreateButton({
+        Name="❄️ ICE ❄️",
+        Callback=function()
+            animating=false
+            local player=game.Players.LocalPlayer
+            local char=player.Character or player.CharacterAdded:Wait()
+            local sparklesList=applySparkles(char)
+            startAnimation("ICE",sparklesList)
+        end
+    })
+    TabHub:CreateButton({
+        Name="🌌 GALAXY 🌌",
+        Callback=function()
+            animating=false
+            local player=game.Players.LocalPlayer
+            local char=player.Character or player.CharacterAdded:Wait()
+            local sparklesList=applySparkles(char)
+            startAnimation("GALAXY",sparklesList)
+        end
+    })
+    TabHub:CreateButton({
+        Name="⚡ NEON ⚡",
+        Callback=function()
+            animating=false
+            local player=game.Players.LocalPlayer
+            local char=player.Character or player.CharacterAdded:Wait()
+            local sparklesList=applySparkles(char)
+            startAnimation("NEON",sparklesList)
+        end
+    })
+    TabHub:CreateButton({
+        Name="✨ FLASH ✨",
+        Callback=function()
+            animating=false
+            local player=game.Players.LocalPlayer
+            local char=player.Character or player.CharacterAdded:Wait()
+            local sparklesList=applySparkles(char)
+            startAnimation("FLASH",sparklesList)
+        end
+    })
+
+    -- Add "Key Info" button to TabMisc for on-demand info
+    TabMisc:CreateButton({
+        Name = "Key Info",
+        Callback = function()
+            if keyInfo.type == "permanent" then
+                if Rayfield.Notify then Rayfield:Notify({ Title = "DXPLOIT HUB", Content = "Key: Permanent", Duration = 6 }) end
+            else
+                local remStr, _ = formatRemaining(keyInfo.expiry)
+                local expStr = formatDate(keyInfo.expiry)
+                if Rayfield.Notify then Rayfield:Notify({ Title = "DXPLOIT HUB", Content = "Key: "..tostring(keyInfo.type).."\nBerlaku sampai: "..expStr.."\nSisa: "..remStr, Duration = 8 }) end
+            end
+        end
+    })
+
+    -- Auto-refresh background: check key every AUTO_REFRESH_INTERVAL seconds
+    task.spawn(function()
+        local stop = false
+        while not stop do
+            task.wait(AUTO_REFRESH_INTERVAL)
+            local okc, refreshed = pcall(function() return checkKey(usedKey, LocalPlayer.UserId) end)
+            if not okc then
+                -- fetch error; skip
+            else
+                if not refreshed or refreshed == false then
+                    if Window and Window.Destroy then pcall(function() Window:Destroy() end) end
+                    if Rayfield.Notify then Rayfield:Notify({ Title = "DXPLOIT HUB", Content = "Key sudah kadaluarsa. UI ditutup.", Duration = 8 }) end
+                    stop = true
+                    break
+                else
+                    keyInfo = refreshed
+                    if keyInfo.expiry then
+                        local _, days, hours, mins, secs = getRemainingParts(keyInfo.expiry)
+                        if days < ALERT_THRESHOLD_DAYS then
+                            if Rayfield.Notify then Rayfield:Notify({ Title = "DXPLOIT HUB", Content = "Peringatan: Key akan segera kadaluarsa. Sisa: "..formatRemaining(keyInfo.expiry), Duration = 10 }) end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+
+end) -- end askKey callback
