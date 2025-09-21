@@ -1,0 +1,166 @@
+-------------------------------------------------------
+-- HIDE NICKNAME SYSTEM
+-------------------------------------------------------
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local CUSTOM_NAME = "DXPLOIT MEMBER"
+local CUSTOM_TAG = "@DXPLOITGG"
+
+local selfEnabled = false
+local globalEnabled = false
+
+-- RGB name loop
+local function startRGBLoop(textLabel)
+    if not textLabel or not textLabel.Parent then return end
+    if textLabel:GetAttribute("dxp_rgb_running") then return end
+    textLabel:SetAttribute("dxp_rgb_running", true)
+    textLabel:SetAttribute("dxp_rgb", true)
+    task.spawn(function()
+        local t = 0
+        while textLabel.Parent and textLabel:GetAttribute("dxp_rgb") do
+            local r = math.floor((math.sin(t) * 0.5 + 0.5) * 255)
+            local g = math.floor((math.sin(t + 2) * 0.5 + 0.5) * 255)
+            local b = math.floor((math.sin(t + 4) * 0.5 + 0.5) * 255)
+            pcall(function() textLabel.TextColor3 = Color3.fromRGB(r,g,b) end)
+            t = t + 0.12
+            task.wait(0.08)
+        end
+        textLabel:SetAttribute("dxp_rgb_running", false)
+    end)
+end
+
+local function stopRGB(textLabel)
+    if textLabel then
+        textLabel:SetAttribute("dxp_rgb", false)
+    end
+end
+
+local function replaceLabelText(textLabel, newText, applyRGBFlag)
+    if not textLabel then return end
+    if not textLabel:GetAttribute("dxp_orig_text") then
+        textLabel:SetAttribute("dxp_orig_text", textLabel.Text)
+    end
+    textLabel.Text = newText
+    if applyRGBFlag then
+        startRGBLoop(textLabel)
+    else
+        stopRGB(textLabel)
+        textLabel.TextColor3 = Color3.fromRGB(255,255,255)
+    end
+end
+
+local function restoreLabelText(textLabel)
+    if not textLabel then return end
+    local orig = textLabel:GetAttribute("dxp_orig_text")
+    if orig then
+        textLabel.Text = orig
+        textLabel:SetAttribute("dxp_orig_text", nil)
+    end
+    stopRGB(textLabel)
+end
+
+local function spoofCharacterForPlayer(char, player, doName, doTag)
+    if not char or not char.Parent then return end
+    local head = char:FindFirstChild("Head")
+    if not head then return end
+    for _, gui in pairs(head:GetChildren()) do
+        if gui:IsA("BillboardGui") then
+            for _, obj in pairs(gui:GetDescendants()) do
+                if obj:IsA("TextLabel") then
+                    if doName and (obj.Text == player.DisplayName or obj.Text == player.Name) then
+                        replaceLabelText(obj, CUSTOM_NAME, true)
+                    end
+                    if doTag and (obj.Text == ("@"..player.Name) or string.find(obj.Text, "@"..player.Name)) then
+                        replaceLabelText(obj, CUSTOM_TAG, false)
+                        pcall(function() obj.TextColor3 = Color3.fromRGB(255,255,255) end)
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function restoreCharacterLabels(char, player)
+    if not char or not char.Parent then return end
+    local head = char:FindFirstChild("Head")
+    if not head then return end
+    for _, gui in pairs(head:GetChildren()) do
+        if gui:IsA("BillboardGui") then
+            for _, obj in pairs(gui:GetDescendants()) do
+                if obj:IsA("TextLabel") then
+                    restoreLabelText(obj)
+                end
+            end
+        end
+    end
+end
+
+local function applyGlobalState()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.Character then
+            if globalEnabled then
+                spoofCharacterForPlayer(player.Character, player, true, true)
+            else
+                restoreCharacterLabels(player.Character, player)
+            end
+        end
+    end
+end
+
+local function applySelfState()
+    if LocalPlayer.Character then
+        if selfEnabled then
+            spoofCharacterForPlayer(LocalPlayer.Character, LocalPlayer, true, true)
+        else
+            restoreCharacterLabels(LocalPlayer.Character, LocalPlayer)
+        end
+    end
+end
+
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(char)
+        task.wait(1)
+        if player == LocalPlayer then
+            if selfEnabled then spoofCharacterForPlayer(char, player, true, true) end
+            if globalEnabled then spoofCharacterForPlayer(char, player, true, true) end
+        else
+            if globalEnabled then spoofCharacterForPlayer(char, player, true, true) end
+        end
+    end)
+end)
+
+for _, player in pairs(Players:GetPlayers()) do
+    player.CharacterAdded:Connect(function(char)
+        task.wait(1)
+        if player == LocalPlayer then
+            if selfEnabled then spoofCharacterForPlayer(char, player, true, true) end
+            if globalEnabled then spoofCharacterForPlayer(char, player, true, true) end
+        else
+            if globalEnabled then spoofCharacterForPlayer(char, player, true, true) end
+        end
+    end)
+end
+
+-- Tab Hide Nickname
+local HideTab = Window:CreateTab("Hide Nickname", 4483362458)
+
+HideTab:CreateToggle({
+    Name = "Self Nickname Spoof",
+    CurrentValue = false,
+    Flag = "SelfNick",
+    Callback = function(Value)
+        selfEnabled = Value
+        applySelfState()
+    end,
+})
+
+HideTab:CreateToggle({
+    Name = "Global Nickname Spoof",
+    CurrentValue = false,
+    Flag = "GlobalNick",
+    Callback = function(Value)
+        globalEnabled = Value
+        applyGlobalState()
+    end,
+})
